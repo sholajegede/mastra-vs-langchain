@@ -8,6 +8,9 @@ import { runLangChainPipeline } from "langchain-pipeline/src/graph/pipeline";
 
 export const maxDuration = 300;
 
+// Hold background tasks so Node doesn't GC them before they finish
+const activeTasks = new Map<string, Promise<void>>();
+
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 2,
@@ -38,6 +41,19 @@ function buildCallbacks(
   framework: "mastra" | "langchain"
 ): PipelineCallbacks {
   const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL!;
+  const stepIterations = new Map<string, number>();
+
+  const log = async (tag: string, message: string) => {
+    try {
+      await fetchMutation(
+        api.pipelineResults.appendLog,
+        { id: pipelineResultId, tag, message },
+        { url: convexUrl }
+      );
+    } catch {
+      // log errors must never surface to the pipeline
+    }
+  };
 
   return {
     onPipelineStart: async () => String(pipelineResultId),
@@ -57,6 +73,10 @@ function buildCallbacks(
         },
         { url: convexUrl }
       );
+      await log(
+        "DONE",
+        `Pipeline complete in ${((data.totalTimeMs ?? 0) / 1000).toFixed(1)}s`
+      );
     },
 
     onPipelineError: async (_id, error) => {
@@ -65,6 +85,7 @@ function buildCallbacks(
         { id: pipelineResultId, status: "error", errorMessage: error },
         { url: convexUrl }
       );
+      await log("ERROR", `Pipeline failed: ${error.slice(0, 200)}`);
     },
 
     step: {
@@ -82,6 +103,17 @@ function buildCallbacks(
           },
           { url: convexUrl }
         );
+        stepIterations.set(String(stepId), iterationNumber);
+
+        if (stepName === "research") {
+          await log("SEARCH", `Querying Tavily: "${input.slice(0, 100)}"`);
+        } else if (stepName === "analysis") {
+          await log("THINK", "Extracting key findings and themes…");
+        } else if (stepName === "write") {
+          const suffix = iterationNumber > 1 ? ` (revision ${iterationNumber})` : "";
+          await log("WRITE", `Drafting structured report${suffix}…`);
+        }
+
         return String(stepId);
       },
 
@@ -106,6 +138,34 @@ function buildCallbacks(
           },
           { url: convexUrl }
         );
+
+        if (data.tavilyResults) {
+          try {
+            const results: Array<{ score?: number }> = JSON.parse(data.tavilyResults);
+            const avg =
+              results.reduce((s, r) => s + (r.score ?? 0), 0) /
+              (results.length || 1);
+            await log(
+              "RESULT",
+              `${results.length} results found (avg relevance: ${(avg * 100).toFixed(0)}%)`
+            );
+          } catch {}
+        }
+
+        if (data.criticScore !== undefined) {
+          const iter = stepIterations.get(stepId) ?? 1;
+          if (data.criticScore >= 7) {
+            await log(
+              "SCORE",
+              `Draft scored ${data.criticScore}/10 — passes threshold`
+            );
+          } else {
+            await log(
+              "LOOP",
+              `Score ${data.criticScore}/10 below threshold, revising (iteration ${iter + 1})`
+            );
+          }
+        }
       },
 
       onStepError: async (stepId, error) => {
@@ -118,6 +178,7 @@ function buildCallbacks(
           },
           { url: convexUrl }
         );
+        await log("ERROR", error.slice(0, 200));
       },
     },
   };
@@ -154,8 +215,8 @@ export async function POST(req: NextRequest) {
     ),
   ]);
 
-  // Run both pipelines in parallel — writes to Convex as each step completes
-  const [mastraErr, langchainErr] = await Promise.allSettled([
+  // Fire both pipelines in the background — return runId immediately
+  const task = Promise.allSettled([
     withRetry(() =>
       runMastraPipeline(topic, buildCallbacks(runId, mastraResultId, "mastra"))
     ),
@@ -165,20 +226,23 @@ export async function POST(req: NextRequest) {
         buildCallbacks(runId, langchainResultId, "langchain")
       )
     ),
-  ]).then((results) =>
-    results.map((r) => (r.status === "rejected" ? r.reason : null))
-  );
+  ])
+    .then(async ([mastraRes, langchainRes]) => {
+      const finalStatus =
+        mastraRes.status === "rejected" || langchainRes.status === "rejected"
+          ? "error"
+          : "complete";
+      await fetchMutation(
+        api.runs.updateRunStatus,
+        { runId, status: finalStatus },
+        { url: convexUrl }
+      ).catch(console.error);
+    })
+    .finally(() => {
+      activeTasks.delete(String(runId));
+    });
 
-  const finalStatus =
-    mastraErr || langchainErr ? "error" : "complete";
-  await fetchMutation(
-    api.runs.updateRunStatus,
-    { runId, status: finalStatus },
-    { url: convexUrl }
-  );
+  activeTasks.set(String(runId), task);
 
-  return NextResponse.json({
-    runId: String(runId),
-    errors: { mastra: mastraErr?.message, langchain: langchainErr?.message },
-  });
+  return NextResponse.json({ runId: String(runId) });
 }

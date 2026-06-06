@@ -10,6 +10,27 @@ function makeLLM() {
   return new ChatAnthropic({ model: MODEL });
 }
 
+async function retryOnFetch<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (
+        i < retries &&
+        (e?.message?.includes("fetch") ||
+          e?.message?.includes("SSL") ||
+          e?.message?.includes("ECONNRESET") ||
+          e?.message?.includes("other side closed"))
+      ) {
+        await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 // Factory: returns node functions that close over callbacks + token accumulators
 export function createNodes(
   callbacks: PipelineCallbacks,
@@ -77,7 +98,7 @@ Respond with EXACTLY this JSON format (no extra text, no markdown code blocks):
     );
     const stepStart = Date.now();
     try {
-      const response = await llm.invoke(prompt);
+      const response = await retryOnFetch(() => llm.invoke(prompt));
       const timeMs = Date.now() - stepStart;
       const inputTokens = response.usage_metadata?.input_tokens ?? 0;
       const outputTokens = response.usage_metadata?.output_tokens ?? 0;
@@ -125,7 +146,7 @@ Return ONLY the report text, no extra commentary.`;
     );
     const stepStart = Date.now();
     try {
-      const response = await llm.invoke(prompt);
+      const response = await retryOnFetch(() => llm.invoke(prompt));
       const timeMs = Date.now() - stepStart;
       const inputTokens = response.usage_metadata?.input_tokens ?? 0;
       const outputTokens = response.usage_metadata?.output_tokens ?? 0;
@@ -179,7 +200,7 @@ ${state.draft}`;
     );
     const stepStart = Date.now();
     try {
-      const response = await llm.invoke(prompt);
+      const response = await retryOnFetch(() => llm.invoke(prompt));
       const timeMs = Date.now() - stepStart;
       const inputTokens = response.usage_metadata?.input_tokens ?? 0;
       const outputTokens = response.usage_metadata?.output_tokens ?? 0;

@@ -43,6 +43,23 @@ export const updatePipelineResult = mutation({
   },
 });
 
+export const appendLog = mutation({
+  args: {
+    id: v.id("pipelineResults"),
+    tag: v.string(),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.id);
+    if (!doc) return;
+    const entry = { timestamp: Date.now(), tag: args.tag, message: args.message };
+    const existing = doc.logs ?? [];
+    await ctx.db.patch(args.id, {
+      logs: [...existing, entry].slice(-100),
+    });
+  },
+});
+
 export const getPipelineResultsForRun = query({
   args: { runId: v.id("runs") },
   handler: async (ctx, args) => {

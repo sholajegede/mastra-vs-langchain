@@ -27,6 +27,15 @@ export default defineSchema({
     totalInputTokens: v.optional(v.number()),
     totalOutputTokens: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
+    logs: v.optional(
+      v.array(
+        v.object({
+          timestamp: v.number(),
+          tag: v.string(),
+          message: v.string(),
+        })
+      )
+    ),
   }).index("by_run", ["runId"]),
 
   steps: defineTable({

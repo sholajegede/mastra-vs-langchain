@@ -29,9 +29,16 @@ export async function runMastraPipeline(
       resetTavilyCapture();
       try {
         const result = await researcherAgent.generate(prompt);
+        console.log("USAGE [research]:", JSON.stringify((result as any).usage));
         const timeMs = Date.now() - stepStart;
-        const inputTokens = (result as any).usage?.promptTokens ?? 0;
-        const outputTokens = (result as any).usage?.completionTokens ?? 0;
+        const inputTokens =
+          (result as any).usage?.promptTokens ??
+          (result as any).usage?.inputTokens ??
+          0;
+        const outputTokens =
+          (result as any).usage?.completionTokens ??
+          (result as any).usage?.outputTokens ??
+          0;
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;
         await callbacks.step.onStepComplete(stepId, {
@@ -73,9 +80,16 @@ export async function runMastraPipeline(
       const stepStart = Date.now();
       try {
         const result = await analystAgent.generate(prompt);
+        console.log("USAGE [analysis]:", JSON.stringify((result as any).usage));
         const timeMs = Date.now() - stepStart;
-        const inputTokens = (result as any).usage?.promptTokens ?? 0;
-        const outputTokens = (result as any).usage?.completionTokens ?? 0;
+        const inputTokens =
+          (result as any).usage?.promptTokens ??
+          (result as any).usage?.inputTokens ??
+          0;
+        const outputTokens =
+          (result as any).usage?.completionTokens ??
+          (result as any).usage?.outputTokens ??
+          0;
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;
         let parsed: { keyFindings: string[]; mainThemes: string[]; centralArgument: string };
@@ -155,10 +169,17 @@ Analysis data:
       let draft = "";
       try {
         const writerResult = await writerAgent.generate(writerPrompt);
+        console.log("USAGE [write]:", JSON.stringify((writerResult as any).usage));
         draft = writerResult.text;
         const writeTimeMs = Date.now() - writeStart;
-        const wi = (writerResult as any).usage?.promptTokens ?? 0;
-        const wo = (writerResult as any).usage?.completionTokens ?? 0;
+        const wi =
+          (writerResult as any).usage?.promptTokens ??
+          (writerResult as any).usage?.inputTokens ??
+          0;
+        const wo =
+          (writerResult as any).usage?.completionTokens ??
+          (writerResult as any).usage?.outputTokens ??
+          0;
         totalInputTokens += wi;
         totalOutputTokens += wo;
         await callbacks.step.onStepComplete(writeStepId, {
@@ -185,9 +206,16 @@ Analysis data:
       let criticData: { score: number; feedback: string } = { score: 7, feedback: "" };
       try {
         const criticResult = await criticAgent.generate(criticPrompt);
+        console.log("USAGE [critic]:", JSON.stringify((criticResult as any).usage));
         const criticTimeMs = Date.now() - criticStart;
-        const ci = (criticResult as any).usage?.promptTokens ?? 0;
-        const co = (criticResult as any).usage?.completionTokens ?? 0;
+        const ci =
+          (criticResult as any).usage?.promptTokens ??
+          (criticResult as any).usage?.inputTokens ??
+          0;
+        const co =
+          (criticResult as any).usage?.completionTokens ??
+          (criticResult as any).usage?.outputTokens ??
+          0;
         totalInputTokens += ci;
         totalOutputTokens += co;
         try {
