@@ -900,6 +900,82 @@ function ExplainerSheet({
               </p>
             </div>
           </div>
+
+          <div className="h-px bg-[#21262d]" />
+
+          {/* Scoring */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
+                Scoring
+              </span>
+              <span className="text-xs text-[#484f58]">G-Eval, 3 dimensions</span>
+            </div>
+
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              The critic uses chain-of-thought reasoning before scoring. It audits every
+              claim in the report against the original Tavily search results before
+              assigning a score. A single 1-10 score defaults to 7 on every run — three
+              independently weighted dimensions force genuine discrimination.
+            </p>
+
+            <div className="space-y-3">
+              {[
+                {
+                  label: "Source Fidelity",
+                  weight: "40%",
+                  color: "bg-blue-500",
+                  detail:
+                    "Is every claim traceable to a specific search result? The critic classifies each claim as GROUNDED, INFERRED, UNSUPPORTED, or HALLUCINATED before scoring. This dimension is where the frameworks diverge most — Mastra passes full Tavily content into its agent context, giving the writer more specific details to cite. LangChain extracts structured findings, which means specific source details can be lost by the time the writer runs.",
+                },
+                {
+                  label: "Specificity",
+                  weight: "30%",
+                  color: "bg-purple-500",
+                  detail:
+                    "Does the report make falsifiable claims or generic observations? The critic maintains a list of forbidden phrases — 'it is important to note', 'organizations must consider', 'rapidly evolving landscape' — that auto-penalise the score. A sentence that would be equally true if you swapped the topic scores zero on specificity.",
+                },
+                {
+                  label: "Insight",
+                  weight: "30%",
+                  color: "bg-amber-500",
+                  detail:
+                    "Does the conclusion add something the introduction did not? Does the report make a non-obvious connection between findings? A developer reading this should learn something they could not have inferred from the topic title alone. This dimension penalises conclusions that restate the introduction.",
+                },
+              ].map(({ label, weight, color, detail }) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#e6edf3]">
+                      {label}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${color}`} />
+                      <span className="text-xs text-[#484f58]">{weight}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#8b949e] leading-relaxed">{detail}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+              <p className="text-xs font-semibold text-[#e6edf3]">
+                Why Mastra often scores higher on quality
+              </p>
+              <p className="text-xs text-[#8b949e] leading-relaxed">
+                Mastra&apos;s token overhead is not just inefficiency. Because the agent
+                passes full search result content into its conversation history, the writer
+                has specific source details available to cite. LangChain extracts
+                structured findings from the research, which produces leaner prompts but
+                loses some source attribution by the write step. LangChain wins on cost
+                and speed. Mastra tends to win on source fidelity. Neither is wrong —
+                they reflect a genuine architectural tradeoff.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </>
