@@ -922,6 +922,8 @@ export default function RunPage() {
     langchainResult ? { pipelineResultId: langchainResult._id } : "skip"
   );
 
+  const [showExplainer, setShowExplainer] = useState(false);
+
   if (run === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -936,8 +938,6 @@ export default function RunPage() {
       </div>
     );
   }
-
-  const [showExplainer, setShowExplainer] = useState(false);
 
   const allSteps = [...(mastraSteps ?? []), ...(langchainSteps ?? [])] as Step[];
 
