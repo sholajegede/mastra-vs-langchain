@@ -14,7 +14,8 @@ const activeTasks = new Map<string, Promise<void>>();
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 2,
-  delayMs = 800
+  delayMs = 800,
+  onRetry?: (attempt: number, error: string) => Promise<void>
 ): Promise<T> {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -26,6 +27,7 @@ async function withRetry<T>(
         err?.message?.includes("ECONNRESET") ||
         err?.message?.includes("ECONNREFUSED");
       if (i < retries && isConnErr) {
+        if (onRetry) await onRetry(i + 1, err?.message ?? String(err)).catch(() => {});
         await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
         continue;
       }
@@ -258,16 +260,46 @@ export async function POST(req: NextRequest) {
     ),
   ]);
 
+  const makeRetryHandler =
+    (pipelineResultId: Id<"pipelineResults">) =>
+    async (attempt: number, _err: string) => {
+      await retryMutation(() =>
+        fetchMutation(
+          api.pipelineResults.updatePipelineResult,
+          { id: pipelineResultId, status: "running" },
+          { url: convexUrl }
+        )
+      ).catch(() => {});
+      await retryMutation(() =>
+        fetchMutation(
+          api.pipelineResults.appendLog,
+          {
+            id: pipelineResultId,
+            tag: "RETRY",
+            message: `Network error on attempt ${attempt}, retrying…`,
+          },
+          { url: convexUrl }
+        )
+      ).catch(() => {});
+    };
+
   // Fire both pipelines in the background — return runId immediately
   const task = Promise.allSettled([
-    withRetry(() =>
-      runMastraPipeline(topic, buildCallbacks(runId, mastraResultId, "mastra"))
+    withRetry(
+      () => runMastraPipeline(topic, buildCallbacks(runId, mastraResultId, "mastra")),
+      2,
+      800,
+      makeRetryHandler(mastraResultId)
     ),
-    withRetry(() =>
-      runLangChainPipeline(
-        topic,
-        buildCallbacks(runId, langchainResultId, "langchain")
-      )
+    withRetry(
+      () =>
+        runLangChainPipeline(
+          topic,
+          buildCallbacks(runId, langchainResultId, "langchain")
+        ),
+      2,
+      800,
+      makeRetryHandler(langchainResultId)
     ),
   ])
     .then(async ([mastraRes, langchainRes]) => {
