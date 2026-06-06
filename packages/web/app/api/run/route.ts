@@ -8,6 +8,30 @@ import { runLangChainPipeline } from "langchain-pipeline/src/graph/pipeline";
 
 export const maxDuration = 300;
 
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delayMs = 800
+): Promise<T> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isConnErr =
+        err?.message?.includes("other side closed") ||
+        err?.message?.includes("SSL") ||
+        err?.message?.includes("ECONNRESET") ||
+        err?.message?.includes("ECONNREFUSED");
+      if (i < retries && isConnErr) {
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 function buildCallbacks(
   runId: Id<"runs">,
   pipelineResultId: Id<"pipelineResults">,
@@ -132,10 +156,14 @@ export async function POST(req: NextRequest) {
 
   // Run both pipelines in parallel — writes to Convex as each step completes
   const [mastraErr, langchainErr] = await Promise.allSettled([
-    runMastraPipeline(topic, buildCallbacks(runId, mastraResultId, "mastra")),
-    runLangChainPipeline(
-      topic,
-      buildCallbacks(runId, langchainResultId, "langchain")
+    withRetry(() =>
+      runMastraPipeline(topic, buildCallbacks(runId, mastraResultId, "mastra"))
+    ),
+    withRetry(() =>
+      runLangChainPipeline(
+        topic,
+        buildCallbacks(runId, langchainResultId, "langchain")
+      )
     ),
   ]).then((results) =>
     results.map((r) => (r.status === "rejected" ? r.reason : null))
