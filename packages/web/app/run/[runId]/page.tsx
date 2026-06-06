@@ -734,16 +734,133 @@ function ComparisonTable({ results }: { results: PipelineResult[] }) {
   );
 }
 
-// ─── explainer sheet ─────────────────────────────────────────────────────────
+// ─── framework sheet ─────────────────────────────────────────────────────────
 
-function ExplainerSheet({
+function FrameworkSheet({
   open,
   onClose,
 }: {
   open: boolean;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<"mastra" | "langchain">("mastra");
   if (!open) return null;
+
+  const mastraSteps = [
+    {
+      label: "Research",
+      detail:
+        "The Agent calls the Tavily search tool inside its tool loop. The full search results are passed into the agent's context window as part of the conversation history, which is why Mastra's input token count on this step is higher.",
+    },
+    {
+      label: "Analysis",
+      detail:
+        "A separate Agent instance receives the research output as a prompt. It returns structured JSON with key findings, themes, and the central argument.",
+    },
+    {
+      label: "Write",
+      detail:
+        "The writer Agent receives the analysis JSON and any critic feedback from previous iterations. It generates the full ~400-word report.",
+    },
+    {
+      label: "Critic",
+      detail:
+        "A fourth Agent scores the draft on accuracy, clarity, and depth. If the score is below 7 and iterations are under 3, the workflow loops back to Write using Mastra's native .dowhile() condition.",
+    },
+  ];
+
+  const langchainSteps = [
+    {
+      label: "Research",
+      detail:
+        "A plain async function calls Tavily directly using @tavily/core. Results are stored in the shared state object as a formatted string. No LLM is called here — which is why this step shows 0 tokens.",
+    },
+    {
+      label: "Analysis",
+      detail:
+        "The analysis node calls ChatAnthropic.invoke() directly with only the research string as context. No agent overhead. This is why LangChain's input token count is significantly lower than Mastra's.",
+    },
+    {
+      label: "Write",
+      detail:
+        "The write node receives the raw research and analysis along with any critic feedback from state, then calls the model directly and stores the draft back into state.",
+    },
+    {
+      label: "Critic",
+      detail:
+        "Uses llm.invoke() to preserve usage metadata for token counting. After scoring, addConditionalEdges routes back to Write if score < 7 or forwards to END.",
+    },
+  ];
+
+  const MastraContent = (
+    <div className="space-y-4">
+      <p className="text-sm text-[#8b949e] leading-relaxed">
+        Mastra uses a{" "}
+        <span className="text-[#c9d1d9]">createWorkflow</span> with explicit
+        steps chained together. Each step runs a full{" "}
+        <span className="text-[#c9d1d9]">Agent</span> instance that manages its
+        own tool loop, retry logic, and streaming infrastructure — even when no
+        tools are called.
+      </p>
+      <div className="space-y-3">
+        {mastraSteps.map(({ label, detail }) => (
+          <div
+            key={label}
+            className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
+          >
+            <p className="text-xs font-semibold text-[#e6edf3] mb-1">{label}</p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">{detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+        <p className="text-xs font-semibold text-[#e6edf3]">
+          Why Mastra uses more tokens
+        </p>
+        <p className="text-xs text-[#8b949e] leading-relaxed">
+          The Agent class wraps every model call with its internal conversation
+          history, tool schemas, and system instructions. This overhead is
+          consistent across all steps and is why Mastra typically uses 1.5 to
+          2.5x more tokens than LangChain on the same topic.
+        </p>
+      </div>
+    </div>
+  );
+
+  const LangChainContent = (
+    <div className="space-y-4">
+      <p className="text-sm text-[#8b949e] leading-relaxed">
+        LangChain uses LangGraph&apos;s{" "}
+        <span className="text-[#c9d1d9]">StateGraph</span> — a directed graph
+        where each node is a plain async function that reads from and partially
+        updates a shared state object. There is no framework wrapper around
+        model calls. The developer controls exactly what goes in and out of each
+        node.
+      </p>
+      <div className="space-y-3">
+        {langchainSteps.map(({ label, detail }) => (
+          <div
+            key={label}
+            className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
+          >
+            <p className="text-xs font-semibold text-[#e6edf3] mb-1">{label}</p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">{detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+        <p className="text-xs font-semibold text-[#e6edf3]">
+          Why LangChain uses fewer tokens
+        </p>
+        <p className="text-xs text-[#8b949e] leading-relaxed">
+          Each node only passes what it needs to the model. There is no agent
+          conversation history or tool schema overhead. The developer explicitly
+          controls every token that enters each model call.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
@@ -760,221 +877,149 @@ function ExplainerSheet({
           </button>
         </div>
 
-        <div className="px-6 py-6 space-y-8">
-          {/* Mastra */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
-                Mastra
-              </span>
-              <span className="text-xs text-[#484f58]">
-                Workflow + Agent model
-              </span>
-            </div>
+        {/* Tabs */}
+        <div className="flex border-b border-[#21262d]">
+          {(["mastra", "langchain"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                tab === t
+                  ? "text-[#e6edf3] border-b-2 border-[#2563eb]"
+                  : "text-[#484f58] hover:text-[#8b949e]"
+              }`}
+            >
+              {t === "mastra" ? "Mastra" : "LangChain"}
+            </button>
+          ))}
+        </div>
 
-            <p className="text-sm text-[#8b949e] leading-relaxed">
-              Mastra uses a{" "}
-              <span className="text-[#c9d1d9]">createWorkflow</span> with
-              explicit steps chained together. Each step runs a full{" "}
-              <span className="text-[#c9d1d9]">Agent</span> instance that
-              manages its own tool loop, retry logic, and streaming
-              infrastructure — even when no tools are called.
-            </p>
+        <div className="px-6 py-6">
+          {tab === "mastra" ? MastraContent : LangChainContent}
+        </div>
+      </div>
+    </>
+  );
+}
 
-            <div className="space-y-3">
-              {[
-                {
-                  label: "Research",
-                  detail:
-                    "The Agent calls the Tavily search tool inside its tool loop. The full search results are passed into the agent's context window as part of the conversation history, which is why Mastra's input token count on this step is higher.",
-                },
-                {
-                  label: "Analysis",
-                  detail:
-                    "A separate Agent instance receives the research output as a prompt. It returns structured JSON with key findings, themes, and the central argument.",
-                },
-                {
-                  label: "Write",
-                  detail:
-                    "The writer Agent receives the analysis JSON and any critic feedback from previous iterations. It generates the full ~400-word report.",
-                },
-                {
-                  label: "Critic",
-                  detail:
-                    "A fourth Agent scores the draft on accuracy, clarity, and depth. If the score is below 7 and iterations are under 3, the workflow loops back to Write using Mastra's native .dowhile() condition.",
-                },
-              ].map(({ label, detail }) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
-                >
-                  <p className="text-xs font-semibold text-[#e6edf3] mb-1">
+// ─── scoring sheet ────────────────────────────────────────────────────────────
+
+function ScoringSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  const dimensions = [
+    {
+      label: "Source Fidelity",
+      weight: "40%",
+      color: "bg-blue-500",
+      detail:
+        "Is every claim traceable to a specific search result? The critic classifies each claim as GROUNDED, INFERRED, UNSUPPORTED, or HALLUCINATED before scoring. This dimension is where the frameworks diverge most — Mastra passes full Tavily content into its agent context, giving the writer more specific details to cite. LangChain extracts structured findings, which means specific source details can be lost by the time the writer runs.",
+    },
+    {
+      label: "Specificity",
+      weight: "30%",
+      color: "bg-purple-500",
+      detail:
+        "Does the report make falsifiable claims or generic observations? The critic maintains a list of forbidden phrases — 'it is important to note', 'organizations must consider', 'rapidly evolving landscape' — that auto-penalise the score. A sentence that would be equally true if you swapped the topic scores zero on specificity.",
+    },
+    {
+      label: "Insight",
+      weight: "30%",
+      color: "bg-amber-500",
+      detail:
+        "Does the conclusion add something the introduction did not? Does the report make a non-obvious connection between findings? A developer reading this should learn something they could not have inferred from the topic title alone. This dimension penalises conclusions that restate the introduction.",
+    },
+  ];
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      <div className="fixed right-0 top-0 z-50 h-full w-full max-w-lg bg-[#161b22] border-l border-[#21262d] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#21262d]">
+          <h2 className="text-sm font-semibold text-[#e6edf3]">
+            How scoring works
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#8b949e] hover:text-[#e6edf3] text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-6 py-6 space-y-4">
+          <p className="text-sm text-[#8b949e] leading-relaxed">
+            A single 1-10 score defaults to 7 on every run because models
+            gravitate toward the safe middle. This critic uses G-Eval —
+            chain-of-thought reasoning across three independently weighted
+            dimensions — so a score of 7 actually means something.
+          </p>
+
+          <div className="space-y-3">
+            {dimensions.map(({ label, weight, color, detail }) => (
+              <div
+                key={label}
+                className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#e6edf3]">
                     {label}
-                  </p>
-                  <p className="text-xs text-[#8b949e] leading-relaxed">
-                    {detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
-              <p className="text-xs font-semibold text-[#e6edf3]">
-                Why Mastra uses more tokens
-              </p>
-              <p className="text-xs text-[#8b949e] leading-relaxed">
-                The Agent class wraps every model call with its internal
-                conversation history, tool schemas, and system instructions.
-                This overhead is consistent across all steps and is why Mastra
-                typically uses 1.5 to 2.5x more tokens than LangChain on the
-                same topic.
-              </p>
-            </div>
-          </div>
-
-          <div className="h-px bg-[#21262d]" />
-
-          {/* LangChain */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
-                LangChain
-              </span>
-              <span className="text-xs text-[#484f58]">StateGraph model</span>
-            </div>
-
-            <p className="text-sm text-[#8b949e] leading-relaxed">
-              LangChain uses LangGraph&apos;s{" "}
-              <span className="text-[#c9d1d9]">StateGraph</span> — a directed
-              graph where each node is a plain async function that reads from
-              and partially updates a shared state object. There is no framework
-              wrapper around model calls. The developer controls exactly what
-              goes in and out of each node.
-            </p>
-
-            <div className="space-y-3">
-              {[
-                {
-                  label: "Research",
-                  detail:
-                    "A plain async function calls Tavily directly using @tavily/core. Results are stored in the shared state object as a formatted string. No LLM is called here — which is why this step shows 0 tokens.",
-                },
-                {
-                  label: "Analysis",
-                  detail:
-                    "The analysis node calls ChatAnthropic.invoke() directly with only the research string as context. No agent overhead. This is why LangChain's input token count is significantly lower than Mastra's.",
-                },
-                {
-                  label: "Write",
-                  detail:
-                    "The write node receives the analysis JSON and any critic feedback from state. It calls the model directly and stores the draft back into state.",
-                },
-                {
-                  label: "Critic",
-                  detail:
-                    "Uses withStructuredOutput() to guarantee the model returns { score, feedback } in the correct shape. After scoring, addConditionalEdges routes back to Write if score < 7 or forwards to END.",
-                },
-              ].map(({ label, detail }) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
-                >
-                  <p className="text-xs font-semibold text-[#e6edf3] mb-1">
-                    {label}
-                  </p>
-                  <p className="text-xs text-[#8b949e] leading-relaxed">
-                    {detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
-              <p className="text-xs font-semibold text-[#e6edf3]">
-                Why LangChain uses fewer tokens
-              </p>
-              <p className="text-xs text-[#8b949e] leading-relaxed">
-                Each node only passes what it needs to the model. There is no
-                agent conversation history or tool schema overhead. The developer
-                explicitly controls every token that enters each model call.
-              </p>
-            </div>
-          </div>
-
-          <div className="h-px bg-[#21262d]" />
-
-          {/* Scoring */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
-                Scoring
-              </span>
-              <span className="text-xs text-[#484f58]">G-Eval, 3 dimensions</span>
-            </div>
-
-            <p className="text-sm text-[#8b949e] leading-relaxed">
-              The critic uses chain-of-thought reasoning before scoring. It audits every
-              claim in the report against the original Tavily search results before
-              assigning a score. A single 1-10 score defaults to 7 on every run — three
-              independently weighted dimensions force genuine discrimination.
-            </p>
-
-            <div className="space-y-3">
-              {[
-                {
-                  label: "Source Fidelity",
-                  weight: "40%",
-                  color: "bg-blue-500",
-                  detail:
-                    "Is every claim traceable to a specific search result? The critic classifies each claim as GROUNDED, INFERRED, UNSUPPORTED, or HALLUCINATED before scoring. This dimension is where the frameworks diverge most — Mastra passes full Tavily content into its agent context, giving the writer more specific details to cite. LangChain extracts structured findings, which means specific source details can be lost by the time the writer runs.",
-                },
-                {
-                  label: "Specificity",
-                  weight: "30%",
-                  color: "bg-purple-500",
-                  detail:
-                    "Does the report make falsifiable claims or generic observations? The critic maintains a list of forbidden phrases — 'it is important to note', 'organizations must consider', 'rapidly evolving landscape' — that auto-penalise the score. A sentence that would be equally true if you swapped the topic scores zero on specificity.",
-                },
-                {
-                  label: "Insight",
-                  weight: "30%",
-                  color: "bg-amber-500",
-                  detail:
-                    "Does the conclusion add something the introduction did not? Does the report make a non-obvious connection between findings? A developer reading this should learn something they could not have inferred from the topic title alone. This dimension penalises conclusions that restate the introduction.",
-                },
-              ].map(({ label, weight, color, detail }) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#e6edf3]">
-                      {label}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${color}`} />
-                      <span className="text-xs text-[#484f58]">{weight}</span>
-                    </div>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${color}`} />
+                    <span className="text-xs text-[#484f58]">{weight}</span>
                   </div>
-                  <p className="text-xs text-[#8b949e] leading-relaxed">{detail}</p>
                 </div>
-              ))}
-            </div>
+                <p className="text-xs text-[#8b949e] leading-relaxed">{detail}</p>
+              </div>
+            ))}
+          </div>
 
-            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
-              <p className="text-xs font-semibold text-[#e6edf3]">
-                Why Mastra often scores higher on quality
-              </p>
-              <p className="text-xs text-[#8b949e] leading-relaxed">
-                Mastra&apos;s token overhead is not just inefficiency. Because the agent
-                passes full search result content into its conversation history, the writer
-                has specific source details available to cite. LangChain extracts
-                structured findings from the research, which produces leaner prompts but
-                loses some source attribution by the write step. LangChain wins on cost
-                and speed. Mastra tends to win on source fidelity. Neither is wrong —
-                they reflect a genuine architectural tradeoff.
-              </p>
-            </div>
+          <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+            <p className="text-xs font-semibold text-[#e6edf3]">
+              The floor rule
+            </p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">
+              If any single dimension scores 4 or below, the final score cannot
+              exceed 6 regardless of the weighted calculation. A critical failure
+              — hallucination, complete source fabrication, or a conclusion that
+              contradicts the research — cannot be averaged away by a strong
+              performance on the other dimensions.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+            <p className="text-xs font-semibold text-[#e6edf3]">
+              The counterfactual check
+            </p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">
+              Before scoring insight, the critic asks: what would a reader
+              believe after reading this that they would not have believed from
+              just the topic title? If no specific belief change can be
+              identified, the insight score cannot exceed 6.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+            <p className="text-xs font-semibold text-[#e6edf3]">
+              Why Mastra often scores higher on quality
+            </p>
+            <p className="text-xs text-[#8b949e] leading-relaxed">
+              Mastra&apos;s token overhead is not just inefficiency. Because the
+              agent passes full search result content into its conversation
+              history, the writer has specific source details available to cite.
+              LangChain extracts structured findings from the research, which
+              produces leaner prompts but loses some source attribution by the
+              write step. LangChain wins on cost and speed. Mastra tends to win
+              on source fidelity. Neither is wrong — they reflect a genuine
+              architectural tradeoff.
+            </p>
           </div>
         </div>
       </div>
@@ -1008,7 +1053,8 @@ export default function RunPage() {
     langchainResult ? { pipelineResultId: langchainResult._id } : "skip"
   );
 
-  const [showExplainer, setShowExplainer] = useState(false);
+  const [showFramework, setShowFramework] = useState(false);
+  const [showScoring, setShowScoring] = useState(false);
 
   if (run === undefined) {
     return (
@@ -1038,12 +1084,20 @@ export default function RunPage() {
             </span>
             <StatusDot status={run.status} />
             <span className="text-xs text-[#8b949e] capitalize">{run.status}</span>
-            <button
-              onClick={() => setShowExplainer(true)}
-              className="ml-auto text-xs text-[#8b949e] border border-[#21262d] rounded-lg px-3 py-1.5 hover:border-[#30363d] hover:text-[#e6edf3] transition-colors"
-            >
-              How this works →
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowFramework(true)}
+                className="text-xs text-[#8b949e] border border-[#21262d] rounded-lg px-3 py-1.5 hover:border-[#30363d] hover:text-[#e6edf3] transition-colors"
+              >
+                How this works →
+              </button>
+              <button
+                onClick={() => setShowScoring(true)}
+                className="text-xs text-[#8b949e] border border-[#21262d] rounded-lg px-3 py-1.5 hover:border-[#30363d] hover:text-[#e6edf3] transition-colors"
+              >
+                How scoring works →
+              </button>
+            </div>
           </div>
           <h1 className="text-xl font-bold text-[#e6edf3] leading-snug">
             {run.topic}
@@ -1092,9 +1146,13 @@ export default function RunPage() {
         )}
       </div>
 
-      <ExplainerSheet
-        open={showExplainer}
-        onClose={() => setShowExplainer(false)}
+      <FrameworkSheet
+        open={showFramework}
+        onClose={() => setShowFramework(false)}
+      />
+      <ScoringSheet
+        open={showScoring}
+        onClose={() => setShowScoring(false)}
       />
     </div>
   );
