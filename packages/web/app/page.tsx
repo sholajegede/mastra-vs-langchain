@@ -17,10 +17,10 @@ const CATEGORIES = [
 ];
 
 const EXAMPLES = [
-  "How LangGraph and Mastra handle agent memory differently",
-  "The real cost of running AI agents in production",
-  "Why most RAG implementations fail in production",
-  "Multi-agent orchestration patterns for enterprise",
+  "How does LangGraph and Mastra handle agent memory differently",
+  "What is the real cost of running AI agents in production?",
+  "Why do most RAG implementations fail in production?",
+  "Research multi-agent orchestration patterns for enterprise",
   "The state of TypeScript AI frameworks in 2026",
 ];
 
@@ -82,13 +82,11 @@ export default function Home() {
 
       {/* Subtitle */}
       <p className="text-[#8b949e] text-center text-sm max-w-md mb-8 leading-relaxed">
-        Same pipeline. Same model. Same topic.
-        <br />
-        Every token, every step, every decision — visible.
+        Run any topic through both frameworks and see every decision they make to get there — the searches, the reasoning, the tokens spent, the quality of what they produce.
       </p>
 
       {/* Example chips */}
-      <div className="flex flex-wrap gap-2 justify-center mb-8">
+      <div className="flex flex-wrap gap-2 justify-center max-w-3xl mx-auto mb-8">
         {EXAMPLES.map((e) => (
           <button
             key={e}
@@ -124,6 +122,7 @@ export default function Home() {
             Category
           </label>
           <select
+            title="select"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="w-full rounded-lg border border-[#21262d] bg-[#161b22] px-4 py-2.5 text-sm text-[#e6edf3] focus:border-[#2563eb] focus:outline-none"
@@ -161,7 +160,7 @@ export default function Home() {
         <div className="h-8 w-px bg-[#21262d]" />
         <div>
           <div className="text-[#8b949e] font-semibold text-sm">Real-time</div>
-          <div>Convex sync</div>
+          <div>Convex DB</div>
         </div>
         <div className="h-px w-px bg-[#21262d]" />
         <div>

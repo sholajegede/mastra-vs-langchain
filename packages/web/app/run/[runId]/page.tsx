@@ -10,6 +10,7 @@ type LogEntry = { timestamp: number; tag: string; message: string };
 
 type Step = {
   _id: string;
+  _creationTime?: number;
   stepName: string;
   iterationNumber: number;
   status: string;
@@ -415,14 +416,25 @@ function PipelinePanel({
   result: PipelineResult;
   steps: Step[];
 }) {
-  const sorted = [...steps].sort((a, b) => {
-    const order = ["research", "analysis", "write", "critic"];
-    return (
-      order.indexOf(a.stepName) * 10 +
+  const stepOrder = ["research", "analysis", "write", "critic"];
+
+  const stepMap = new Map<string, Step>();
+  [...steps]
+    .sort((a, b) => (a._creationTime ?? 0) - (b._creationTime ?? 0))
+    .forEach((s) => {
+      const key = `${s.stepName}-${s.iterationNumber}`;
+      const existing = stepMap.get(key);
+      if (!existing || s.status === "complete" || existing.status === "error") {
+        stepMap.set(key, s);
+      }
+    });
+
+  const sorted = [...stepMap.values()].sort(
+    (a, b) =>
+      stepOrder.indexOf(a.stepName) * 10 +
       a.iterationNumber -
-      (order.indexOf(b.stepName) * 10 + b.iterationNumber)
-    );
-  });
+      (stepOrder.indexOf(b.stepName) * 10 + b.iterationNumber)
+  );
 
   const totalTokens =
     (result.totalInputTokens ?? 0) + (result.totalOutputTokens ?? 0);
@@ -652,6 +664,178 @@ function ComparisonTable({ results }: { results: PipelineResult[] }) {
   );
 }
 
+// ─── explainer sheet ─────────────────────────────────────────────────────────
+
+function ExplainerSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      <div className="fixed right-0 top-0 z-50 h-full w-full max-w-lg bg-[#161b22] border-l border-[#21262d] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#21262d]">
+          <h2 className="text-sm font-semibold text-[#e6edf3]">
+            How each framework runs this pipeline
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-[#8b949e] hover:text-[#e6edf3] text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-6 py-6 space-y-8">
+          {/* Mastra */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
+                Mastra
+              </span>
+              <span className="text-xs text-[#484f58]">
+                Workflow + Agent model
+              </span>
+            </div>
+
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              Mastra uses a{" "}
+              <span className="text-[#c9d1d9]">createWorkflow</span> with
+              explicit steps chained together. Each step runs a full{" "}
+              <span className="text-[#c9d1d9]">Agent</span> instance that
+              manages its own tool loop, retry logic, and streaming
+              infrastructure — even when no tools are called.
+            </p>
+
+            <div className="space-y-3">
+              {[
+                {
+                  label: "Research",
+                  detail:
+                    "The Agent calls the Tavily search tool inside its tool loop. The full search results are passed into the agent's context window as part of the conversation history, which is why Mastra's input token count on this step is higher.",
+                },
+                {
+                  label: "Analysis",
+                  detail:
+                    "A separate Agent instance receives the research output as a prompt. It returns structured JSON with key findings, themes, and the central argument.",
+                },
+                {
+                  label: "Write",
+                  detail:
+                    "The writer Agent receives the analysis JSON and any critic feedback from previous iterations. It generates the full ~400-word report.",
+                },
+                {
+                  label: "Critic",
+                  detail:
+                    "A fourth Agent scores the draft on accuracy, clarity, and depth. If the score is below 7 and iterations are under 3, the workflow loops back to Write using Mastra's native .dowhile() condition.",
+                },
+              ].map(({ label, detail }) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
+                >
+                  <p className="text-xs font-semibold text-[#e6edf3] mb-1">
+                    {label}
+                  </p>
+                  <p className="text-xs text-[#8b949e] leading-relaxed">
+                    {detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+              <p className="text-xs font-semibold text-[#e6edf3]">
+                Why Mastra uses more tokens
+              </p>
+              <p className="text-xs text-[#8b949e] leading-relaxed">
+                The Agent class wraps every model call with its internal
+                conversation history, tool schemas, and system instructions.
+                This overhead is consistent across all steps and is why Mastra
+                typically uses 1.5 to 2.5x more tokens than LangChain on the
+                same topic.
+              </p>
+            </div>
+          </div>
+
+          <div className="h-px bg-[#21262d]" />
+
+          {/* LangChain */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded bg-[#21262d] text-[#e6edf3]">
+                LangChain
+              </span>
+              <span className="text-xs text-[#484f58]">StateGraph model</span>
+            </div>
+
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              LangChain uses LangGraph&apos;s{" "}
+              <span className="text-[#c9d1d9]">StateGraph</span> — a directed
+              graph where each node is a plain async function that reads from
+              and partially updates a shared state object. There is no framework
+              wrapper around model calls. The developer controls exactly what
+              goes in and out of each node.
+            </p>
+
+            <div className="space-y-3">
+              {[
+                {
+                  label: "Research",
+                  detail:
+                    "A plain async function calls Tavily directly using @tavily/core. Results are stored in the shared state object as a formatted string. No LLM is called here — which is why this step shows 0 tokens.",
+                },
+                {
+                  label: "Analysis",
+                  detail:
+                    "The analysis node calls ChatAnthropic.invoke() directly with only the research string as context. No agent overhead. This is why LangChain's input token count is significantly lower than Mastra's.",
+                },
+                {
+                  label: "Write",
+                  detail:
+                    "The write node receives the analysis JSON and any critic feedback from state. It calls the model directly and stores the draft back into state.",
+                },
+                {
+                  label: "Critic",
+                  detail:
+                    "Uses withStructuredOutput() to guarantee the model returns { score, feedback } in the correct shape. After scoring, addConditionalEdges routes back to Write if score < 7 or forwards to END.",
+                },
+              ].map(({ label, detail }) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3"
+                >
+                  <p className="text-xs font-semibold text-[#e6edf3] mb-1">
+                    {label}
+                  </p>
+                  <p className="text-xs text-[#8b949e] leading-relaxed">
+                    {detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-[#21262d] bg-[#0d1117] px-4 py-3 space-y-1">
+              <p className="text-xs font-semibold text-[#e6edf3]">
+                Why LangChain uses fewer tokens
+              </p>
+              <p className="text-xs text-[#8b949e] leading-relaxed">
+                Each node only passes what it needs to the model. There is no
+                agent conversation history or tool schema overhead. The developer
+                explicitly controls every token that enters each model call.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function RunPage() {
@@ -693,6 +877,8 @@ export default function RunPage() {
     );
   }
 
+  const [showExplainer, setShowExplainer] = useState(false);
+
   const allSteps = [...(mastraSteps ?? []), ...(langchainSteps ?? [])] as Step[];
 
   return (
@@ -706,6 +892,12 @@ export default function RunPage() {
             </span>
             <StatusDot status={run.status} />
             <span className="text-xs text-[#8b949e] capitalize">{run.status}</span>
+            <button
+              onClick={() => setShowExplainer(true)}
+              className="ml-auto text-xs text-[#8b949e] border border-[#21262d] rounded-lg px-3 py-1.5 hover:border-[#30363d] hover:text-[#e6edf3] transition-colors"
+            >
+              How this works →
+            </button>
           </div>
           <h1 className="text-xl font-bold text-[#e6edf3] leading-snug">
             {run.topic}
@@ -753,6 +945,11 @@ export default function RunPage() {
           <ComparisonTable results={pipelineResults as PipelineResult[]} />
         )}
       </div>
+
+      <ExplainerSheet
+        open={showExplainer}
+        onClose={() => setShowExplainer(false)}
+      />
     </div>
   );
 }
