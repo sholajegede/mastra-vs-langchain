@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="https://mastra.ai/favicon.ico" alt="Mastra" width="40" height="40" />
+  <img src="https://raw.githubusercontent.com/sholajegede/mastra-vs-langchain/main/public/mastra-logo.png" alt="Mastra" width="40" height="40" />
   &nbsp;&nbsp;&nbsp;
   <strong>vs</strong>
   &nbsp;&nbsp;&nbsp;
-  <img src="https://python.langchain.com/img/favicon.ico" alt="LangChain" width="40" height="40" />
+  <img src="https://raw.githubusercontent.com/sholajegede/mastra-vs-langchain/main/public/langchain-logo.png" alt="LangChain" width="40" height="40" />
 </p>
 
 <h1 align="center">Mastra vs LangChain</h1>
@@ -201,7 +201,7 @@ Both produce the same output for the same input. The difference is in how you re
 
 ## Tech
 
-- [Mastra](https://mastra.ai) — TypeScript-first AI agent framework
-- [LangChain / LangGraph](https://langchain.com) — LLM application framework with graph-based orchestration
-- [Claude Haiku 4.5](https://anthropic.com) — LLM for all agents in both pipelines
+- <img src="https://raw.githubusercontent.com/sholajegede/mastra-vs-langchain/main/public/mastra-logo.png" width="16" height="16" /> [Mastra](https://mastra.ai) — TypeScript-first AI agent framework
+- <img src="https://raw.githubusercontent.com/sholajegede/mastra-vs-langchain/main/public/langchain-logo.png" width="16" height="16" /> [LangChain / LangGraph](https://langchain.com) — LLM application framework with graph-based orchestration
+- <img src="https://raw.githubusercontent.com/sholajegede/mastra-vs-langchain/main/public/anthropic-logo.png" width="16" height="16" /> [Claude Haiku 4.5](https://anthropic.com) — LLM powering all agents in both pipelines
 - [Tavily](https://tavily.com) — Web search API for the research step
