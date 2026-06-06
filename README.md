@@ -23,15 +23,11 @@
   <img alt="Tavily" src="https://img.shields.io/badge/Tavily-Search-0066FF?style=flat-square" />
 </p>
 
----
-
 ## What this is
 
 The same five-step research and synthesis pipeline, built twice — once in Mastra, once in LangChain/LangGraph — running in parallel on any topic you choose.
 
 Every step is fully instrumented: the Tavily search query and all five results with relevance scores, the exact prompt sent to Claude at each step, the full response, input and output tokens, time per step, and a G-Eval critic that scores the final report across three independent dimensions with chain-of-thought reasoning before each score.
-
----
 
 ## The web dashboard
 
@@ -65,8 +61,6 @@ Run any topic and see both pipelines execute in real time, side by side.
 **Two explainer sheets on every run page:**
 - "How this works" — tabbed view of how Mastra and LangChain each execute the pipeline, why Mastra uses more tokens, and what architectural decisions drive the differences
 - "How scoring works" — the G-Eval evaluation system, the three dimensions with weights, the floor rule, and the counterfactual check
-
----
 
 ## The pipeline
 
@@ -138,8 +132,6 @@ Topic
          with critic feedback
 ```
 
----
-
 ## How each framework handles it
 
 | | Mastra | LangChain / LangGraph |
@@ -155,8 +147,6 @@ Topic
 | **TypeScript** | First-class, full inference end-to-end | Supported, some type casting required |
 | **Model** | `claude-haiku-4-5` via `@ai-sdk/anthropic` | `claude-haiku-4-5` via `@langchain/anthropic` |
 
----
-
 ## What the data shows
 
 **Speed:** LangChain is 25-45% faster in every run. On "The state of TypeScript AI frameworks in 2026": Mastra 28.9s, LangChain 21.6s. On "How LangGraph and Mastra handle agent memory differently": Mastra 43.7s, LangChain 25.6s. The gap widens with longer Tavily results and never reverses.
@@ -166,8 +156,6 @@ Topic
 **Quality:** Both produce comparable final reports when given the same source material. The G-Eval critic scores vary by how specific and well-grounded the research is, not by which framework ran the pipeline.
 
 **The tradeoff:** Mastra abstracts orchestration into the framework — less wiring code, consistent token and latency overhead. LangChain puts the wiring on you — more explicit, leaner execution.
-
----
 
 ## Project structure
 
@@ -210,8 +198,6 @@ mastra-vs-langchain/
 └── README.md
 ```
 
----
-
 ## Setup
 
 **1. Clone and install**
@@ -246,8 +232,6 @@ NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
 CONVEX_URL=https://your-deployment.convex.cloud
 ```
 
----
-
 ## Running
 
 **Web dashboard**
@@ -269,8 +253,6 @@ cd packages/langchain-pipeline
 npx ts-node src/index.ts "the future of AI agents in enterprise software"
 ```
 
----
-
 ## Example topics
 
 | Category | Topic |
@@ -281,8 +263,6 @@ npx ts-node src/index.ts "the future of AI agents in enterprise software"
 | Technology | Multi-agent orchestration patterns for enterprise |
 | Technology | The real cost of running AI agents in production |
 | Business | How Convex compares to Firebase in 2026 |
-
----
 
 ## Tech
 

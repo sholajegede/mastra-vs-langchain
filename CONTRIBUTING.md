@@ -13,8 +13,6 @@ Right now you can run Mastra vs LangChain on any topic. The goal is for users to
 - Mastra vs LangChain vs CrewAI (three-way)
 - Any combination a user selects from a dropdown
 
----
-
 ## How the architecture supports this
 
 Every pipeline implements the same `PipelineCallbacks` interface from `packages/shared`:
@@ -33,8 +31,6 @@ export interface PipelineCallbacks {
 ```
 
 A pipeline that implements this interface plugs straight into the dashboard. The web app, the Convex backend, and the live log system all work without any changes.
-
----
 
 ## Adding a new framework
 
@@ -114,8 +110,6 @@ In `packages/web/app/page.tsx`, replace the single "Run both frameworks" button 
 
 In `packages/web/app/run/[runId]/page.tsx`, the two-column grid becomes dynamic based on how many frameworks are running.
 
----
-
 ## What stays consistent across frameworks
 
 For a fair benchmark, every framework implementation must:
@@ -129,8 +123,6 @@ For a fair benchmark, every framework implementation must:
 
 The evaluation bias section of the article explains why the last point matters.
 
----
-
 ## Other contributions
 
 **New pipeline types.** The benchmark currently runs a research and synthesis pipeline. A tool-use-under-load pipeline, a multi-agent coordination pipeline, or an error recovery pipeline would each reveal different framework characteristics.
@@ -138,8 +130,6 @@ The evaluation bias section of the article explains why the last point matters.
 **New evaluation dimensions.** The G-Eval critic currently scores source fidelity, specificity, and insight. A factual accuracy dimension (checked against a ground truth) or a code quality dimension for code-generation pipelines would expand what the benchmark measures.
 
 **New categories.** The history page groups runs by category. More categories mean a richer dataset for comparing framework behaviour across domains.
-
----
 
 ## Development setup
 
