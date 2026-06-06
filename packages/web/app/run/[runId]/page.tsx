@@ -484,7 +484,17 @@ function PipelinePanel({
     .forEach((s) => {
       const key = `${s.stepName}-${s.iterationNumber}`;
       const existing = stepMap.get(key);
-      if (!existing || s.status === "complete" || existing.status === "error") {
+      if (!existing) {
+        stepMap.set(key, s);
+        return;
+      }
+      // Complete always wins over anything else
+      if (s.status === "complete") {
+        stepMap.set(key, s);
+        return;
+      }
+      // If neither is complete, keep the latest (sort order ensures latest comes last)
+      if (existing.status !== "complete") {
         stepMap.set(key, s);
       }
     });
