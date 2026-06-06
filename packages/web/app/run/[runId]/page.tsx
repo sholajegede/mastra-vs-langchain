@@ -24,6 +24,7 @@ type Step = {
   tavilyResults?: string;
   criticScore?: number;
   criticFeedback?: string;
+  criticDimensions?: Record<string, unknown>;
 };
 
 type PipelineResult = {
@@ -329,39 +330,98 @@ function StepCard({ step }: { step: Step }) {
           {/* Critic score */}
           {step.stepName === "critic" && step.criticScore !== undefined && (
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">
-                  Score
-                </span>
+              {[
+                {
+                  label: "Source Fidelity",
+                  key: "fidelity",
+                  weight: "40%",
+                  desc: "Are claims grounded in the search results?",
+                },
+                {
+                  label: "Specificity",
+                  key: "specificity",
+                  weight: "30%",
+                  desc: "Does it make specific falsifiable claims?",
+                },
+                {
+                  label: "Insight",
+                  key: "insight",
+                  weight: "30%",
+                  desc: "Does it say something worth reading?",
+                },
+              ].map(({ label, key, weight }) => {
+                const val = step.criticDimensions?.[key] as number | undefined;
+                const reasoning = step.criticDimensions?.[key + "Reasoning"] as
+                  | string
+                  | undefined;
+                return (
+                  <div key={key} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-medium text-[#c9d1d9]">
+                          {label}
+                        </span>
+                        <span className="text-xs text-[#484f58] ml-2">
+                          weight {weight}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-sm font-bold ${
+                          val !== undefined && val >= 8
+                            ? "text-green-400"
+                            : val !== undefined && val >= 6
+                            ? "text-amber-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {val ?? "—"}/10
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded bg-[#21262d]">
+                      <div
+                        className={`h-1.5 rounded transition-all ${
+                          val !== undefined && val >= 8
+                            ? "bg-green-500"
+                            : val !== undefined && val >= 6
+                            ? "bg-amber-500"
+                            : "bg-red-500"
+                        }`}
+                        style={{ width: `${(val ?? 0) * 10}%` }}
+                      />
+                    </div>
+                    {reasoning && (
+                      <p className="text-xs text-[#8b949e] leading-relaxed">
+                        {reasoning}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-[#21262d] pt-3 flex items-center justify-between">
+                <span className="text-xs text-[#8b949e]">Weighted final score</span>
                 <span
-                  className={`text-2xl font-bold ${
-                    step.criticScore >= 7
+                  className={`text-lg font-bold ${
+                    step.criticScore >= 8
                       ? "text-green-400"
-                      : step.criticScore >= 5
+                      : step.criticScore >= 6
                       ? "text-amber-400"
                       : "text-red-400"
                   }`}
                 >
-                  {step.criticScore}
-                  <span className="text-sm text-[#8b949e] font-normal">/10</span>
+                  {step.criticScore}/10
                 </span>
-                <div className="flex-1 h-1.5 rounded bg-[#21262d]">
-                  <div
-                    className={`h-1.5 rounded ${
-                      step.criticScore >= 7
-                        ? "bg-green-500"
-                        : step.criticScore >= 5
-                        ? "bg-amber-500"
-                        : "bg-red-500"
-                    }`}
-                    style={{ width: `${step.criticScore * 10}%` }}
-                  />
-                </div>
               </div>
+
               {step.criticFeedback && (
-                <p className="text-sm text-[#c9d1d9] leading-relaxed">
-                  {step.criticFeedback}
-                </p>
+                <div className="rounded-lg bg-[#0d1117] border border-[#21262d] px-3 py-2">
+                  <p className="text-xs font-medium text-[#8b949e] mb-1 uppercase tracking-wider">
+                    Feedback
+                  </p>
+                  <p className="text-xs text-[#c9d1d9] leading-relaxed">
+                    {step.criticFeedback}
+                  </p>
+                </div>
               )}
             </div>
           )}

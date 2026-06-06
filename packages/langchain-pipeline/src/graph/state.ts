@@ -9,6 +9,7 @@ export const PipelineState = Annotation.Root({
   feedback: Annotation<string>(),
   iterations: Annotation<number>(),
   finalReport: Annotation<string>(),
+  criticDimensions: Annotation<object>(),
 });
 
 export type PipelineStateType = typeof PipelineState.State;

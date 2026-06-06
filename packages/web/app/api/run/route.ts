@@ -171,6 +171,7 @@ function buildCallbacks(
                 : undefined,
               criticScore: data.criticScore,
               criticFeedback: data.criticFeedback,
+              criticDimensions: data.criticDimensions,
             },
             { url: convexUrl }
           )

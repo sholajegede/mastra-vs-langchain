@@ -16,8 +16,6 @@ export async function runMastraPipeline(
   let totalOutputTokens = 0;
   const pipelineStart = Date.now();
 
-  // Steps are created inside this function to close over callbacks + accumulators
-
   const researchStep = createStep({
     id: "research",
     inputSchema: z.object({ topic: z.string() }),
@@ -66,6 +64,8 @@ export async function runMastraPipeline(
     inputSchema: z.object({ topic: z.string(), research: z.string() }),
     outputSchema: z.object({
       topic: z.string(),
+      research: z.string(),
+      analysis: z.string(),
       keyFindings: z.array(z.string()),
       mainThemes: z.array(z.string()),
       centralArgument: z.string(),
@@ -112,6 +112,8 @@ export async function runMastraPipeline(
         });
         return {
           topic: inputData.topic,
+          research: inputData.research,
+          analysis: result.text,
           keyFindings: parsed.keyFindings,
           mainThemes: parsed.mainThemes,
           centralArgument: parsed.centralArgument,
@@ -127,6 +129,8 @@ export async function runMastraPipeline(
     id: "write-critic",
     inputSchema: z.object({
       topic: z.string(),
+      research: z.string(),
+      analysis: z.string(),
       keyFindings: z.array(z.string()),
       mainThemes: z.array(z.string()),
       centralArgument: z.string(),
@@ -137,6 +141,8 @@ export async function runMastraPipeline(
     }),
     outputSchema: z.object({
       topic: z.string(),
+      research: z.string(),
+      analysis: z.string(),
       keyFindings: z.array(z.string()),
       mainThemes: z.array(z.string()),
       centralArgument: z.string(),
@@ -146,18 +152,19 @@ export async function runMastraPipeline(
       iterations: z.number(),
     }),
     execute: async ({ inputData }) => {
-      const { keyFindings, mainThemes, centralArgument } = inputData;
+      const { keyFindings, mainThemes, centralArgument, research, analysis } = inputData;
       const iteration = (inputData.iterations ?? 0) + 1;
 
       // WRITE phase
-      let writerPrompt = `Write a structured ~400-word report on the topic: "${inputData.topic}"
+      let writerPrompt = `Topic: "${inputData.topic}"
 
-Analysis data:
-- Key Findings: ${keyFindings.join(" | ")}
-- Main Themes: ${mainThemes.join(", ")}
-- Central Argument: ${centralArgument}`;
+Research:
+${research}
+
+Analysis:
+${analysis}`;
       if (inputData.feedback && inputData.draft) {
-        writerPrompt += `\n\nPrevious draft to revise:\n${inputData.draft}\n\nFeedback to address:\n${inputData.feedback}`;
+        writerPrompt += `\n\nPrevious draft:\n${inputData.draft}\n\nFeedback to address:\n${inputData.feedback}`;
       }
 
       const writeStepId = await callbacks.step.onStepStart(
@@ -196,14 +203,32 @@ Analysis data:
       }
 
       // CRITIC phase
-      const criticPrompt = `Review and score the following report on accuracy, clarity, and depth:\n\n${draft}`;
+      const criticPrompt = `RESEARCH:
+${research}
+
+ANALYSIS:
+${analysis}
+
+DRAFT:
+${draft}
+
+Evaluate the draft against the research and analysis above.`;
       const criticStepId = await callbacks.step.onStepStart(
         "critic",
         iteration,
         draft.slice(0, 500)
       );
       const criticStart = Date.now();
-      let criticData: { score: number; feedback: string } = { score: 7, feedback: "" };
+      let criticScore = 5;
+      let criticFeedback = "";
+      let criticDimensions = {
+        fidelity: 5,
+        specificity: 5,
+        insight: 5,
+        fidelityReasoning: "",
+        specificityReasoning: "",
+        insightReasoning: "",
+      };
       try {
         const criticResult = await criticAgent.generate(criticPrompt);
         console.log("USAGE [critic]:", JSON.stringify((criticResult as any).usage));
@@ -219,9 +244,20 @@ Analysis data:
         totalInputTokens += ci;
         totalOutputTokens += co;
         try {
-          criticData = JSON.parse(criticResult.text);
+          const parsed = JSON.parse(criticResult.text);
+          criticScore = parsed.score ?? parsed.finalScore ?? 5;
+          criticFeedback = parsed.feedback ?? "";
+          criticDimensions = {
+            fidelity: parsed.fidelity ?? 5,
+            specificity: parsed.specificity ?? 5,
+            insight: parsed.insight ?? 5,
+            fidelityReasoning: parsed.fidelityReasoning ?? "",
+            specificityReasoning: parsed.specificityReasoning ?? "",
+            insightReasoning: parsed.insightReasoning ?? "",
+          };
         } catch {
-          criticData = { score: 7, feedback: "Score parsing failed." };
+          criticScore = 5;
+          criticFeedback = "Score parsing failed.";
         }
         await callbacks.step.onStepComplete(criticStepId, {
           output: criticResult.text,
@@ -230,8 +266,9 @@ Analysis data:
           inputTokens: ci,
           outputTokens: co,
           model: "claude-haiku-4-5",
-          criticScore: criticData.score,
-          criticFeedback: criticData.feedback,
+          criticScore,
+          criticFeedback,
+          criticDimensions,
         });
       } catch (err: any) {
         await callbacks.step.onStepError(criticStepId, err?.message ?? String(err));
@@ -240,12 +277,14 @@ Analysis data:
 
       return {
         topic: inputData.topic,
+        research,
+        analysis,
         keyFindings,
         mainThemes,
         centralArgument,
         draft,
-        score: criticData.score,
-        feedback: criticData.feedback,
+        score: criticScore,
+        feedback: criticFeedback,
         iterations: iteration,
       };
     },

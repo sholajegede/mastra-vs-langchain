@@ -65,6 +65,14 @@ export default defineSchema({
     tavilyResults: v.optional(v.string()),
     criticScore: v.optional(v.number()),
     criticFeedback: v.optional(v.string()),
+    criticDimensions: v.optional(v.object({
+      fidelity: v.number(),
+      specificity: v.number(),
+      insight: v.number(),
+      fidelityReasoning: v.string(),
+      specificityReasoning: v.string(),
+      insightReasoning: v.string(),
+    })),
     errorMessage: v.optional(v.string()),
   }).index("by_pipeline_result", ["pipelineResultId"]),
 });

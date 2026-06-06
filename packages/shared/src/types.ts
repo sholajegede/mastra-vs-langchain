@@ -17,6 +17,14 @@ export interface StepCallbacks {
       tavilyResults?: string;
       criticScore?: number;
       criticFeedback?: string;
+      criticDimensions?: {
+        fidelity: number;
+        specificity: number;
+        insight: number;
+        fidelityReasoning: string;
+        specificityReasoning: string;
+        insightReasoning: string;
+      };
     }
   ) => Promise<void>;
   onStepError: (stepId: string, error: string) => Promise<void>;
