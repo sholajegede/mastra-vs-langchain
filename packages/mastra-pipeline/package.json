@@ -10,6 +10,7 @@
     "@mastra/core": "1.41.0",
     "@tavily/core": "0.7.5",
     "dotenv": "^16.0.0",
+    "shared": "*",
     "zod": "^3.22.0"
   },
   "devDependencies": {

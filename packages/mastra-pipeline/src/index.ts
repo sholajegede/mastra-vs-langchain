@@ -15,33 +15,45 @@ async function main() {
 
   const topic = process.argv[2] ?? "the future of multi-agent AI systems";
 
-  const { pipeline } = await import("./workflows/pipeline");
+  const { runMastraPipeline } = await import("./workflows/pipeline");
+
+  const noopCallbacks = {
+    onPipelineStart: async () => "noop",
+    onPipelineComplete: async () => {},
+    onPipelineError: async () => {},
+    step: {
+      onStepStart: async () => "noop",
+      onStepComplete: async () => {},
+      onStepError: async () => {},
+    },
+  };
 
   console.log("=== MASTRA PIPELINE ===");
   console.log(`Topic: ${topic}`);
   console.log("Running pipeline...\n");
 
-  const run = await pipeline.createRun();
-  const result = await run.start({ inputData: { topic } });
+  let finalReport = "";
+  let finalScore = 0;
+  let finalIterations = 0;
 
-  if (result.status !== "success") {
-    const err = (result as any).error;
-    console.error("Pipeline failed:", err?.message ?? result.status);
-    process.exit(1);
-  }
-
-  const output = result.result as {
-    topic: string;
-    draft: string;
-    score: number;
-    feedback: string;
-    iterations: number;
+  const callbacks = {
+    ...noopCallbacks,
+    onPipelineComplete: async (_id: string, data: {
+      iterations: number; finalScore: number; finalReport: string;
+      totalTimeMs: number; totalInputTokens: number; totalOutputTokens: number;
+    }) => {
+      finalReport = data.finalReport;
+      finalScore = data.finalScore;
+      finalIterations = data.iterations;
+    },
   };
 
-  console.log(`Iterations: ${output.iterations}`);
-  console.log(`Score: ${output.score}/10`);
+  await runMastraPipeline(topic, callbacks);
+
+  console.log(`Iterations: ${finalIterations}`);
+  console.log(`Score: ${finalScore}/10`);
   console.log("\n--- FINAL REPORT ---");
-  console.log(output.draft);
+  console.log(finalReport);
   console.log("====================");
 }
 

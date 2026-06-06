@@ -1,9 +1,16 @@
 {
-  "name": "agent-showdown",
+  "name": "mastra-vs-langchain",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "mastra": "cd packages/mastra-pipeline && npx ts-node src/index.ts",
-    "langchain": "cd packages/langchain-pipeline && npx ts-node src/index.ts"
+    "langchain": "cd packages/langchain-pipeline && npx ts-node src/index.ts",
+    "web": "cd packages/web && npm run dev",
+    "convex": "npx convex dev"
+  },
+  "dependencies": {
+    "convex": "^1.40.0"
   }
 }

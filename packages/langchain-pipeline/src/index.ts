@@ -15,18 +15,40 @@ async function main() {
 
   const topic = process.argv[2] ?? "the future of multi-agent AI systems";
 
-  const { pipeline } = await import("./graph/pipeline");
+  const { runLangChainPipeline } = await import("./graph/pipeline");
 
   console.log("=== LANGCHAIN PIPELINE ===");
   console.log(`Topic: ${topic}`);
   console.log("Running pipeline...\n");
 
-  const result = await pipeline.invoke({ topic, iterations: 0 });
+  let finalReport = "";
+  let finalScore = 0;
+  let finalIterations = 0;
 
-  console.log(`Iterations: ${result.iterations}`);
-  console.log(`Score: ${result.score}/10`);
+  const callbacks = {
+    onPipelineStart: async () => "noop",
+    onPipelineComplete: async (_id: string, data: {
+      iterations: number; finalScore: number; finalReport: string;
+      totalTimeMs: number; totalInputTokens: number; totalOutputTokens: number;
+    }) => {
+      finalReport = data.finalReport;
+      finalScore = data.finalScore;
+      finalIterations = data.iterations;
+    },
+    onPipelineError: async () => {},
+    step: {
+      onStepStart: async () => "noop",
+      onStepComplete: async () => {},
+      onStepError: async () => {},
+    },
+  };
+
+  await runLangChainPipeline(topic, callbacks);
+
+  console.log(`Iterations: ${finalIterations}`);
+  console.log(`Score: ${finalScore}/10`);
   console.log("\n--- FINAL REPORT ---");
-  console.log(result.draft);
+  console.log(finalReport);
   console.log("====================");
 }
 
