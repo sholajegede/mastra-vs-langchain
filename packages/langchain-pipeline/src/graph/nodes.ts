@@ -1,6 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { tavily } from "@tavily/core";
-import { z } from "zod";
 import { PipelineCallbacks } from "shared/src/types";
 import { PipelineStateType } from "./state";
 
@@ -32,6 +31,30 @@ async function retryOnFetch<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     }
   }
   throw new Error("unreachable");
+}
+
+function extractJson(text: string): any {
+  try {
+    return JSON.parse(text.trim());
+  } catch {}
+
+  const matches = text.match(/\{[\s\S]*\}/g);
+  if (matches) {
+    for (let i = matches.length - 1; i >= 0; i--) {
+      try {
+        return JSON.parse(matches[i]);
+      } catch {}
+    }
+  }
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {}
+  }
+
+  return null;
 }
 
 const WRITER_INSTRUCTIONS = `You are a research analyst writing for a technical audience. Your job is to produce a report that makes specific, defensible claims grounded in the research provided to you.
@@ -126,17 +149,6 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "score": <weighted final 1-10>,
   "feedback": "<two to three sentences: what specifically needs to improve in the next draft, referencing actual sentences>"
 }`;
-
-const criticOutputSchema = z.object({
-  fidelity: z.number(),
-  fidelityReasoning: z.string(),
-  specificity: z.number(),
-  specificityReasoning: z.string(),
-  insight: z.number(),
-  insightReasoning: z.string(),
-  score: z.number(),
-  feedback: z.string(),
-});
 
 // Factory: returns node functions that close over callbacks + token accumulators
 export function createNodes(
@@ -289,6 +301,8 @@ DRAFT:
 ${state.draft}
 
 Evaluate the draft against the research and analysis above.`;
+    console.log("=== CRITIC INPUT (first 300 chars) ===");
+    console.log(prompt.slice(0, 300));
     const stepId = await callbacks.step.onStepStart(
       "critic",
       iteration,
@@ -302,30 +316,28 @@ Evaluate the draft against the research and analysis above.`;
       const outputTokens = response.usage_metadata?.output_tokens ?? 0;
       acc.inputTokens += inputTokens;
       acc.outputTokens += outputTokens;
-      const rawText = response.content as string;
-      let parsed: z.infer<typeof criticOutputSchema>;
-      try {
-        parsed = criticOutputSchema.parse(JSON.parse(rawText));
-      } catch {
-        parsed = {
-          fidelity: 5,
-          fidelityReasoning: "Score parsing failed.",
-          specificity: 5,
-          specificityReasoning: "Score parsing failed.",
-          insight: 5,
-          insightReasoning: "Score parsing failed.",
-          score: 5,
-          feedback: "Score parsing failed.",
-        };
+      const rawText =
+        typeof response.content === "string"
+          ? response.content
+          : (response.content as any)[0]?.text ?? "";
+      console.log("LANGCHAIN CRITIC RAW:", rawText.slice(0, 500));
+      const parsed = extractJson(rawText);
+      if (!parsed) {
+        console.log("LANGCHAIN CRITIC FULL OUTPUT (parse failed):", rawText);
       }
-      const criticDimensions = {
-        fidelity: parsed.fidelity,
-        specificity: parsed.specificity,
-        insight: parsed.insight,
-        fidelityReasoning: parsed.fidelityReasoning,
-        specificityReasoning: parsed.specificityReasoning,
-        insightReasoning: parsed.insightReasoning,
-      };
+      const criticScore = parsed?.score ?? parsed?.finalScore ?? 4;
+      const criticFeedback =
+        parsed?.feedback ?? "Score parsing failed — revising draft";
+      const criticDimensions = parsed
+        ? {
+            fidelity: parsed.fidelity ?? 0,
+            specificity: parsed.specificity ?? 0,
+            insight: parsed.insight ?? 0,
+            fidelityReasoning: parsed.fidelityReasoning ?? "",
+            specificityReasoning: parsed.specificityReasoning ?? "",
+            insightReasoning: parsed.insightReasoning ?? "",
+          }
+        : undefined;
       await callbacks.step.onStepComplete(stepId, {
         output: rawText,
         promptSent: prompt,
@@ -333,11 +345,15 @@ Evaluate the draft against the research and analysis above.`;
         inputTokens,
         outputTokens,
         model: MODEL,
-        criticScore: parsed.score,
-        criticFeedback: parsed.feedback,
+        criticScore,
+        criticFeedback,
         criticDimensions,
       });
-      return { score: parsed.score, feedback: parsed.feedback, criticDimensions };
+      return {
+        score: criticScore,
+        feedback: criticFeedback,
+        criticDimensions: criticDimensions ?? {},
+      };
     } catch (err: any) {
       await callbacks.step.onStepError(stepId, err?.message ?? String(err));
       throw err;

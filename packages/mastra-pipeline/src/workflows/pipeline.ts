@@ -7,6 +7,30 @@ import { writerAgent } from "../agents/writer";
 import { criticAgent } from "../agents/critic";
 import { lastTavilyCapture, resetTavilyCapture } from "../tools/search";
 
+function extractJson(text: string): any {
+  try {
+    return JSON.parse(text.trim());
+  } catch {}
+
+  const matches = text.match(/\{[\s\S]*\}/g);
+  if (matches) {
+    for (let i = matches.length - 1; i >= 0; i--) {
+      try {
+        return JSON.parse(matches[i]);
+      } catch {}
+    }
+  }
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {}
+  }
+
+  return null;
+}
+
 export async function runMastraPipeline(
   topic: string,
   callbacks: PipelineCallbacks
@@ -213,25 +237,30 @@ DRAFT:
 ${draft}
 
 Evaluate the draft against the research and analysis above.`;
+      console.log("=== CRITIC INPUT (first 300 chars) ===");
+      console.log(criticPrompt.slice(0, 300));
       const criticStepId = await callbacks.step.onStepStart(
         "critic",
         iteration,
         draft.slice(0, 500)
       );
       const criticStart = Date.now();
-      let criticScore = 5;
-      let criticFeedback = "";
-      let criticDimensions = {
-        fidelity: 5,
-        specificity: 5,
-        insight: 5,
-        fidelityReasoning: "",
-        specificityReasoning: "",
-        insightReasoning: "",
-      };
+      let criticScore = 4;
+      let criticFeedback = "Score parsing failed — revising draft";
+      let criticDimensions:
+        | {
+            fidelity: number;
+            specificity: number;
+            insight: number;
+            fidelityReasoning: string;
+            specificityReasoning: string;
+            insightReasoning: string;
+          }
+        | undefined = undefined;
       try {
         const criticResult = await criticAgent.generate(criticPrompt);
         console.log("USAGE [critic]:", JSON.stringify((criticResult as any).usage));
+        console.log("CRITIC RAW OUTPUT:", criticResult.text.slice(0, 500));
         const criticTimeMs = Date.now() - criticStart;
         const ci =
           (criticResult as any).usage?.promptTokens ??
@@ -243,21 +272,21 @@ Evaluate the draft against the research and analysis above.`;
           0;
         totalInputTokens += ci;
         totalOutputTokens += co;
-        try {
-          const parsed = JSON.parse(criticResult.text);
-          criticScore = parsed.score ?? parsed.finalScore ?? 5;
-          criticFeedback = parsed.feedback ?? "";
+        const parsed = extractJson(criticResult.text ?? "");
+        if (!parsed) {
+          console.log("CRITIC FULL OUTPUT (parse failed):", criticResult.text);
+        }
+        criticScore = parsed?.score ?? parsed?.finalScore ?? 4;
+        criticFeedback = parsed?.feedback ?? "Score parsing failed — revising draft";
+        if (parsed) {
           criticDimensions = {
-            fidelity: parsed.fidelity ?? 5,
-            specificity: parsed.specificity ?? 5,
-            insight: parsed.insight ?? 5,
+            fidelity: parsed.fidelity ?? 0,
+            specificity: parsed.specificity ?? 0,
+            insight: parsed.insight ?? 0,
             fidelityReasoning: parsed.fidelityReasoning ?? "",
             specificityReasoning: parsed.specificityReasoning ?? "",
             insightReasoning: parsed.insightReasoning ?? "",
           };
-        } catch {
-          criticScore = 5;
-          criticFeedback = "Score parsing failed.";
         }
         await callbacks.step.onStepComplete(criticStepId, {
           output: criticResult.text,

@@ -514,7 +514,7 @@ function PipelinePanel({
             <span>{fmtTime(result.totalTimeMs)}</span>
           )}
           {totalTokens > 0 && (
-            <span>{totalTokens.toLocaleString()} tok</span>
+            <span>{totalTokens.toLocaleString()} tokens</span>
           )}
         </div>
       </div>
