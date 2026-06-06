@@ -34,31 +34,41 @@ Forbidden phrases that auto-penalise: "it is important to note", "organizations 
 STEP 3 — INSIGHT AUDIT
 Does the conclusion add anything not in the introduction? Does the report make a non-obvious connection between findings? Would a developer reading this learn something they could not have inferred from the topic title alone?
 
+STEP 3.5 — COUNTERFACTUAL CHECK
+What would a reader believe after reading this report that they would not have believed from just the topic title and general knowledge?
+
+List at least one specific belief change. If you cannot identify one, the insight score cannot exceed 6.
+
 STEP 4 — SCORE EACH DIMENSION
 
-SOURCE FIDELITY (how grounded is the report in the actual research results?):
-1-2: Multiple HALLUCINATED or heavily UNSUPPORTED claims
-3-4: Several UNSUPPORTED claims that stretch the research
-5-6: Mostly INFERRED with few GROUNDED specifics
-7-8: Majority GROUNDED, only minor inference
-9-10: Every major claim is GROUNDED, zero hallucination
+SOURCE FIDELITY (how grounded in the actual research?):
+1-2:  Multiple claims contradict or fabricate details not present in the research
+3-4:  Several claims go beyond the research with no basis
+5-6:  Claims are accurate but traced to general topic knowledge, not these specific search results
+7:    Most claims traceable to the research, at least one source cited by name
+8:    All major claims grounded, two or more named sources with specific details used
+9-10: Every claim traces to a named source, at least one specific statistic or quote used from the research, zero unsupported claims
 
-SPECIFICITY (does it make specific falsifiable claims?):
-1-2: Reads like a generic essay on the topic
-3-4: A few specifics surrounded by filler
-5-6: Mix — some paragraphs specific, others generic
-7-8: Mostly specific, one or two generic sentences
-9-10: Every sentence makes a specific, falsifiable claim
+SPECIFICITY (specific falsifiable claims?):
+1-2:  Generic throughout — could be about any topic
+3-4:  One or two specific details buried in filler
+5-6:  Some specific claims but generic analysis or generic transitions between paragraphs
+7:    Mostly specific, minor filler remains
+8:    Every paragraph makes a specific claim that could be falsified, named entities used throughout
+9-10: Zero sentences that would survive if you swapped the topic. Every claim is tied to this specific topic with this specific evidence.
 
-INSIGHT (does it say something worth reading?):
-1-2: Restates the obvious, no synthesis
-3-4: Identifies patterns already implicit in the topic
-5-6: Some synthesis but conclusions do not surprise
-7-8: Makes a non-obvious connection or recommendation
-9-10: A reader learns something they could not have inferred
+INSIGHT (worth reading?):
+1-2:  Restates what the topic title implies
+3-4:  Identifies patterns obvious from the topic
+5-6:  Some synthesis but the conclusion could have been written before reading the research
+7:    The conclusion makes a recommendation or prediction that follows from the evidence
+8:    Identifies a tension or tradeoff the reader likely has not considered
+9-10: A senior engineer would reconsider an architectural decision after reading this. The insight is non-obvious AND actionable.
 
 STEP 5 — CALCULATE FINAL SCORE
 finalScore = round((fidelity * 0.40) + (specificity * 0.30) + (insight * 0.30))
+
+FLOOR RULE: If any single dimension scores 4 or below, the final score cannot exceed 6 regardless of the weighted calculation. A critical failure in one dimension cannot be averaged away.
 
 A score of 7 means the report is genuinely good. Most first drafts should score 4-6. Reserve 8-10 for reports that are specific, grounded, and insightful.
 
@@ -73,7 +83,7 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "insight": <1-10>,
   "insightReasoning": "<one sentence explaining the score>",
   "score": <weighted final 1-10>,
-  "feedback": "<two to three sentences: what specifically needs to improve in the next draft, referencing actual sentences>"
+  "feedback": "<Two to three sentences. Be surgical — identify the exact sentence or paragraph that caused the lowest-scoring dimension to fail, quote it, and state precisely what needs to change. Generic feedback like 'improve source citations' is not acceptable.>"
 }`,
   model: anthropic("claude-haiku-4-5"),
 });
