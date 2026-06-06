@@ -1,0 +1,20 @@
+{
+  "name": "mastra-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.81",
+    "@mastra/core": "1.41.0",
+    "@tavily/core": "0.7.5",
+    "dotenv": "^16.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "agent-showdown",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "mastra": "cd packages/mastra-pipeline && npx ts-node src/index.ts",
+    "langchain": "cd packages/langchain-pipeline && npx ts-node src/index.ts"
+  }
+}
