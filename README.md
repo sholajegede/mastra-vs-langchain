@@ -29,26 +29,24 @@
 
 The same five-step research and synthesis pipeline, built twice — once in Mastra, once in LangChain/LangGraph — running in parallel on any topic you choose.
 
-Every step is instrumented: the Tavily search query, all five results with relevance scores, the exact prompt sent to Claude, the response, input and output tokens, time per step, and a G-Eval critic that scores the final report across three independent dimensions with chain-of-thought reasoning before each score.
-
-The goal is a bias-free, evidence-based answer to the question developers actually need to answer: when does it make sense to use one over the other, and what does the real difference look like in practice?
+Every step is fully instrumented: the Tavily search query and all five results with relevance scores, the exact prompt sent to Claude at each step, the full response, input and output tokens, time per step, and a G-Eval critic that scores the final report across three independent dimensions with chain-of-thought reasoning before each score.
 
 ---
 
 ## The web dashboard
 
-Run any topic through the dashboard and see both pipelines execute in real time, side by side.
+Run any topic and see both pipelines execute in real time, side by side.
 
-**What you see per step:**
-- Status (running / complete / error) with live timing
+**Per step you see:**
+- Status with live timing
 - Input and output token counts
 - Model used
 - Tavily query and all five results with relevance bars (research step)
 - Full prompt sent to Claude (expandable)
-- Claude's full response (expandable)
-- G-Eval critic breakdown with dimension scores and reasoning (critic step)
+- Full response (expandable)
+- G-Eval dimension scores with per-dimension reasoning (critic step)
 
-**Live log panel** — a scrolling terminal below each pipeline showing tagged events as they happen:
+**Live log panel** — scrolling terminal showing tagged events as they happen:
 
 | Tag | What it means |
 |---|---|
@@ -62,9 +60,11 @@ Run any topic through the dashboard and see both pipelines execute in real time,
 | `DONE` | Pipeline complete |
 | `ERROR` | Non-recoverable failure |
 
-**History page** — every run saved to Convex with category filters, score bars per framework, and a winner indicator. Browse runs by topic, compare scores across Technology / Finance / Science / History / Philosophy / Art / Healthcare / Politics / Environment / Business.
+**History page** — every run saved to Convex with category filters and score bars. Browse by topic across Technology / Finance / Science / History / Philosophy / Art / Healthcare / Politics / Environment / Business.
 
-**Framework explainer sheet** — a "How this works →" button on every run page opens a slide-over panel that explains step-by-step how Mastra and LangChain each execute the pipeline, why Mastra uses more tokens, and what architectural decisions drive the differences you're seeing.
+**Two explainer sheets on every run page:**
+- "How this works" — tabbed view of how Mastra and LangChain each execute the pipeline, why Mastra uses more tokens, and what architectural decisions drive the differences
+- "How scoring works" — the G-Eval evaluation system, the three dimensions with weights, the floor rule, and the counterfactual check
 
 ---
 
@@ -97,8 +97,7 @@ Topic
 │     · Each paragraph makes exactly one argument      │
 │     · Names tools, companies, numbers from research  │
 │     · Forbidden phrases list enforced                │
-│     · Conclusion must predict or recommend, not      │
-│       summarise                                      │
+│     · Conclusion must predict or recommend           │
 └─────────────────────────┬────────────────────────────┘
                           │
                           ▼
@@ -106,8 +105,7 @@ Topic
 │  4. CRITIC  (G-Eval, chain-of-thought)               │
 │                                                      │
 │  Step 1: Claim Audit                                 │
-│    Classifies every factual claim as GROUNDED /      │
-│    INFERRED / UNSUPPORTED / HALLUCINATED             │
+│    GROUNDED / INFERRED / UNSUPPORTED / HALLUCINATED  │
 │                                                      │
 │  Step 2: Specificity Audit                           │
 │    Flags generic sentences and forbidden phrases     │
@@ -116,22 +114,28 @@ Topic
 │    Checks whether the conclusion adds anything       │
 │    beyond restating the introduction                 │
 │                                                      │
+│  Step 3.5: Counterfactual Check                      │
+│    Names one belief a reader gains that they         │
+│    could not infer from the topic title alone        │
+│                                                      │
 │  Step 4: Score three dimensions independently        │
 │    Source Fidelity  (40%) — grounded in research?    │
-│    Specificity      (30%) — specific falsifiable      │
-│                             claims?                  │
+│    Specificity      (30%) — specific, falsifiable?   │
 │    Insight          (30%) — worth reading?           │
 │                                                      │
-│  Final = round(fidelity×0.4 + specificity×0.3        │
+│  Floor rule: if any dimension scores 4 or below,    │
+│  final score cannot exceed 6                        │
+│                                                      │
+│  Final = round(fidelity×0.4 + specificity×0.3       │
 │                + insight×0.3)                        │
 └─────────────────────────┬────────────────────────────┘
                           │
              ┌────────────┴────────────┐
-             │  score < 7              │  score ≥ 7
+             │  score < 7              │  score >= 7
              │  iterations < 3         │  iterations = 3
              ▼                         ▼
          back to WRITE            FINAL OUTPUT
-         with critic feedback     (score reported)
+         with critic feedback
 ```
 
 ---
@@ -144,8 +148,8 @@ Topic
 | **Loop pattern** | `.dowhile(step, condition)` — first-class | `addConditionalEdges` — graph routing function |
 | **Agent definition** | `Agent` class with `id`, `instructions`, `tools` | Plain async node functions with `ChatAnthropic` |
 | **Tool definition** | `createTool` with Zod input schema | Direct `@tavily/core` call inside research node |
-| **State passing** | Step output schema → next step input schema | Shared mutable state object, partial updates per node |
-| **Structured output** | Instruction-level JSON enforcement | `.withStructuredOutput(schema)` |
+| **State passing** | Step output schema to next step input schema | Shared mutable state object, partial updates per node |
+| **Structured output** | Instruction-level JSON enforcement | `llm.invoke()` with `extractJson()` parser |
 | **Context window** | Full Tavily content passed into agent context | Tavily results stored in state, passed selectively |
 | **Token usage** | Higher — agent overhead on every step | Lower — developer controls exactly what enters each call |
 | **TypeScript** | First-class, full inference end-to-end | Supported, some type casting required |
@@ -155,15 +159,13 @@ Topic
 
 ## What the data shows
 
-Across all runs on this benchmark:
+**Speed:** LangChain is 25-45% faster in every run. On "The state of TypeScript AI frameworks in 2026": Mastra 28.9s, LangChain 21.6s. On "How LangGraph and Mastra handle agent memory differently": Mastra 43.7s, LangChain 25.6s. The gap widens with longer Tavily results and never reverses.
 
-**Speed:** LangChain consistently completes 25-45% faster. Mastra's Agent class initialises its tool loop infrastructure on every step, adding latency even when no tools are called. LangGraph nodes are plain async functions with no framework wrapper.
+**Tokens:** Mastra uses 1.5-2.5x more tokens. On the memory topic: Mastra 25,658 total tokens, LangChain 9,720. The research step alone: Mastra 21,280 input tokens, LangChain 0 — because LangChain calls Tavily directly without an LLM. On simpler topics: Mastra ~6,200 tokens, LangChain ~3,900.
 
-**Tokens:** Mastra uses 1.5-2.5x more tokens on the same topic. The Agent class passes full Tavily content into its conversation history. On topics with long search results (the memory topic ran 21,280 input tokens on the research step alone), this compounds significantly. LangChain passes only what the node explicitly selects.
+**Quality:** Both produce comparable final reports when given the same source material. The G-Eval critic scores vary by how specific and well-grounded the research is, not by which framework ran the pipeline.
 
-**Quality:** Both produce comparable final reports on the same topic. When the G-Eval critic forces revisions, both frameworks loop correctly. The difference is cost and latency, not output quality.
-
-**The tradeoff in plain terms:** Mastra abstracts orchestration complexity into the framework. You write less wiring code but pay a token and latency tax on every step. LangChain puts that wiring code back on you but gives you precise control over every token that enters each model call.
+**The tradeoff:** Mastra abstracts orchestration into the framework — less wiring code, consistent token and latency overhead. LangChain puts the wiring on you — more explicit, leaner execution.
 
 ---
 
@@ -181,30 +183,30 @@ mastra-vs-langchain/
 │   │       │   ├── writer.ts            # Strict report writer with forbidden phrases
 │   │       │   └── critic.ts            # G-Eval critic, 3-dimension scoring
 │   │       ├── workflows/pipeline.ts    # createWorkflow + .dowhile() loop
-│   │       └── index.ts                 # CLI entry point
+│   │       └── index.ts
 │   │
 │   ├── langchain-pipeline/
 │   │   └── src/
 │   │       ├── graph/
-│   │       │   ├── state.ts             # Annotation.Root with research, analysis, draft, score
-│   │       │   ├── nodes.ts             # Node functions, retryOnFetch wrapper per call
+│   │       │   ├── state.ts             # Annotation.Root state definition
+│   │       │   ├── nodes.ts             # Node functions + retryOnFetch wrapper
 │   │       │   └── pipeline.ts          # StateGraph + addConditionalEdges loop
-│   │       └── index.ts                 # CLI entry point
+│   │       └── index.ts
 │   │
-│   └── web/                             # Next.js 16 App Router dashboard
+│   └── web/
 │       └── app/
-│           ├── page.tsx                 # Run page with topic input + example chips
-│           ├── run/[runId]/page.tsx     # Live comparison view + explainer sheet
+│           ├── page.tsx                 # Topic input + example chips
+│           ├── run/[runId]/page.tsx     # Live comparison view + explainer sheets
 │           └── history/page.tsx         # Categorised run history
 │
-├── convex/                              # Real-time backend
-│   ├── schema.ts                        # runs, pipelineResults, steps tables
+├── convex/
+│   ├── schema.ts                        # runs, pipelineResults, steps
 │   ├── runs.ts
-│   ├── pipelineResults.ts               # appendLog mutation for live logs
+│   ├── pipelineResults.ts               # appendLog mutation
 │   └── steps.ts
 │
 ├── .env.example
-├── package.json                         # npm workspaces root
+├── package.json
 └── README.md
 ```
 
@@ -229,7 +231,7 @@ cp .env.example .env
 | Variable | Where to get it |
 |---|---|
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
-| `TAVILY_API_KEY` | [tavily.com](https://tavily.com) — free tier covers this |
+| `TAVILY_API_KEY` | [tavily.com](https://tavily.com) |
 
 **3. Set up Convex**
 
@@ -237,7 +239,7 @@ cp .env.example .env
 npx convex dev --once
 ```
 
-This creates your Convex deployment and generates the type-safe API. Copy the deployment URL into `packages/web/.env.local`:
+Copy the deployment URL into `packages/web/.env.local`:
 
 ```
 NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
@@ -248,37 +250,28 @@ CONVEX_URL=https://your-deployment.convex.cloud
 
 ## Running
 
-**Web dashboard (recommended)**
-
-Two terminals:
+**Web dashboard**
 
 ```bash
-# Terminal 1 — Convex real-time backend
-npx convex dev
-
-# Terminal 2 — Next.js dashboard
-npm run web
+npx convex dev   # Terminal 1
+npm run web      # Terminal 2
 ```
 
-Open `http://localhost:3000`, enter a topic, pick a category, and watch both pipelines run in real time.
+Open `http://localhost:3000`.
 
-**CLI (direct)**
+**CLI**
 
 ```bash
-# Mastra
 cd packages/mastra-pipeline
 npx ts-node src/index.ts "the future of AI agents in enterprise software"
 
-# LangChain
 cd packages/langchain-pipeline
 npx ts-node src/index.ts "the future of AI agents in enterprise software"
 ```
 
-Use the same topic on both to make outputs directly comparable.
-
 ---
 
-## Example topics by category
+## Example topics
 
 | Category | Topic |
 |---|---|
