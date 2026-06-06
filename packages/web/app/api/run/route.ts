@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { fetchMutation } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -321,6 +322,7 @@ export async function POST(req: NextRequest) {
     });
 
   activeTasks.set(String(runId), task);
+  waitUntil(task);
 
   return NextResponse.json({ runId: String(runId) });
 }
