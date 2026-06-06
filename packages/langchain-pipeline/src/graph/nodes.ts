@@ -10,19 +10,22 @@ function makeLLM() {
   return new ChatAnthropic({ model: MODEL });
 }
 
-async function retryOnFetch<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+async function retryOnFetch<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let i = 0; i <= retries; i++) {
     try {
       return await fn();
     } catch (e: any) {
-      if (
-        i < retries &&
-        (e?.message?.includes("fetch") ||
-          e?.message?.includes("SSL") ||
-          e?.message?.includes("ECONNRESET") ||
-          e?.message?.includes("other side closed"))
-      ) {
-        await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+      const shouldRetry =
+        e?.message?.includes("fetch") ||
+        e?.message?.includes("fetch failed") ||
+        e?.message === "fetch failed" ||
+        e?.message?.includes("SSL") ||
+        e?.message?.includes("ECONNRESET") ||
+        e?.message?.includes("other side closed") ||
+        e?.cause?.message?.includes("fetch") ||
+        e?.cause?.code === "ECONNRESET";
+      if (i < retries && shouldRetry) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         continue;
       }
       throw e;
